@@ -1,10 +1,13 @@
 var express = require('express');
 var app = express();
-var http = require('http').Server(app);
-var io = require('socket.io')(http);
+// var http = require('http').Server(app);
+// var io = require('socket.io')(http);
 //var ffmpeg = require('fluent-ffmpeg');
 //var stream = require('stream');
+var fs = require('fs');
 var spawn = require('child_process').spawn;
+
+app.use(express.static('static'));
 
 //testing
 spawn('ffmpeg',['-h']).on('error',function(m){
@@ -12,7 +15,21 @@ spawn('ffmpeg',['-h']).on('error',function(m){
 	process.exit(-1);
 });
 
-app.use(express.static('static'));
+var SSL_KEY = 'server.key';
+var SSL_CERT = 'server.crt';
+var option = {
+    key: fs.readFileSync(SSL_KEY).toString(),
+    cert: fs.readFileSync(SSL_CERT).toString()
+};
+var server = require('https').createServer(option, app);
+var port = 8888;
+var io = require('socket.io').listen(server);
+server.listen(port);
+
+// http.listen(8888, function(){
+//  console.log('http and websocket listening on *:8888');
+// });
+
 
 io.on('connection', function(socket){
 	socket.emit('message','Hello from mediarecorder-to-rtmp server!');
@@ -57,12 +74,15 @@ io.on('connection', function(socket){
 		}
 		var ops=[
 			'-vcodec', socket._vcodec,'-i','-',
-			'-c:v', 'libx264', '-preset', 'veryfast', '-tune', 'zerolatency',
-			'-an', //TODO: give up audio for now...
+			'-c:v', 'libx264','-g', '10', '-preset', 'veryfast', '-tune', 'fastdecode,zerolatency',
+			//'-c:v', 'libx264', '-vf','scale=iw*.5:ih*.5','-g', '10', '-preset', 'veryfast', '-tune', 'fastdecode,zerolatency',
+			'-bufsize', '4000k', '-threads', '0',
+			//'-c:v', 'libx264','-r', '10', '-preset', 'veryfast', '-tune', 'fastdecode,zerolatency','-analyzeduration', '2147483647', '-probesize', '2147483647',
+            '-acodec', 'libfdk_aac','-strict', 'experimental', '-ac', '1', '-ab', '96k', '-ar', '44100', '-vsync', 'passthrough',
+			//'-an', //TODO: give up audio for now...
 			//'-async', '1', 
 			//'-filter_complex', 'aresample=44100', //necessary for trunked streaming?
-			//'-strict', 'experimental', '-c:a', 'aac', '-b:a', '128k',
-			'-bufsize', '1000',
+			//'-strict', 'experimental', '-c:a', 'aac', '-b:a', '128k',ß
 			'-f', 'flv', socket._rtmpDestination
 		];
 		ffmpeg_process=spawn('ffmpeg', ops);
@@ -109,10 +129,6 @@ io.on('connection', function(socket){
 
 io.on('error',function(e){
 	console.log('socket.io error:'+e);
-});
-
-http.listen(8888, function(){
-  console.log('http and websocket listening on *:8888');
 });
 
 

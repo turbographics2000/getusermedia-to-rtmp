@@ -90,7 +90,9 @@ function onSuccess(stream) {
 	
 	socket.emit('config_rtmpDestination',url);
 	socket.emit('start','start');
-	mediaRecorder = new MediaRecorder(stream);
+	//var options = {mimeType: 'video/webm;codecs=vp8'};
+	var options = {mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 382000};
+	mediaRecorder = new MediaRecorder(stream,options);
 	mediaRecorder.start(2000);
 
 	mediaRecorder.onstop = function(e) {
@@ -112,6 +114,7 @@ function requestMedia(){
 		video:{
 	        width: { min: width, ideal: width, max: width },
 	        height: { min: height, ideal: height, max: height },
+	        frameRate: { ideal: 10, max: 10 },
 	    }
 	};
 	navigator.getUserMedia(constraints, onSuccess, onError);
