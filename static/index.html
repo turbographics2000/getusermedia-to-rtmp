@@ -1,124 +1,279 @@
-<!doctype>
+<!DOCTYPE html>
 <html>
+
 <head>
-	<title>MediaRecorder to RTMP Demo</title>
-	<script src="/socket.io/socket.io.js"></script>
+    <meta charset="utf-8">
+    <title>MediaRecorder to RTMP Demo</title>
+    <!--<script src="/socket.io/socket.io.js"></script>-->
+    <style>
+        .btn {
+            background: #666;
+            color: #ffffff;
+            border: 0;
+            border-radius: 6px;
+            font-size: 20px;
+            text-decoration: none;
+            cursor: pointer;
+            padding: 5px;
+        }
+
+        .btn * {
+            margin: 3px;
+        }
+
+        .btn:hover {
+            background: #AAA;
+            text-decoration: none;
+        }
+
+        .btn:active {
+            background: #666;
+        }
+
+        video {
+            display: inline-block;
+            width: 49%;
+            border: 1px solid #ddd;
+            box-sizing: border-box;
+            height: 200px;
+            position: relative;
+        }
+
+        fieldset,
+        video,
+        #logContainer {
+            border-radius: 6px;
+        }
+
+        #formContainer {
+            vertical-align: top;
+            display: inline-block;
+            width: 50%;
+        }
+
+        fieldset {
+            margin: 0.5em;
+        }
+
+        .button-container {
+            padding: 10px;
+            text-align: center;
+        }
+
+        #logContainer {
+            padding: 3px;
+            width: 100%;
+            height: 200px;
+            overflow-y: auto;
+            border: 1px solid #ddd;
+        }
+
+        .log-line {
+            padding: 2px;
+            border-radius: 3px;
+        }
+
+        #option_url {
+            width: 300px;
+        }
+
+        #logContainer * {
+            margin: 2px;
+        }
+
+        #logContainer> :nth-child(odd) {
+            background: #e8f5f9;
+        }
+
+
+        .type {
+            width: 60px;
+            text-align: center;
+            border-radius: 3px;
+        }
+
+        .type,
+        .log {
+            display: inline-block;
+            padding: 2px;
+        }
+
+        .log {
+            width: calc(100% - 80px);
+            vertical-align: top;
+        }
+
+        .fatal .type {
+            background: red;
+            color: white;
+        }
+
+        .fatal .log {
+            color: red;
+        }
+
+        .error .type {
+            background: #ee6633;
+            color: white;
+        }
+
+        .error .log {
+            color: #ee6633;
+        }
+
+        .event .type {
+            background: #3399BB;
+            color: white;
+        }
+
+        .event .log {
+            color: #3399BB;
+        }
+
+        .message .type {
+            background: #8333BB;
+            color: white;
+        }
+
+        .message .log {
+            color: #8333BB;
+        }
+
+        .ffmpeg .type {
+            background: #328a32;
+            color: white;
+        }
+
+        .ffmpeg .log {
+            color: #328a32;
+        }
+    </style>
 </head>
+
 <body style="max-width:800px;height:100%;margin:auto;">
-<h1>
-MediaRecorder to RTMP Demo
-</h1>
-<label for="option_width" >Size:</label>
-<input type="text" id="option_width" value="480"/> &times;
-<input type="text" id="option_height" value="360"/>
-<br>
-<label for="option_url" >RTMP Destination:</label>
-<input type="text" id="option_url" value="rtmp://localhost/live"/>
-<br>
-<button id="button_start">Start streaming</button>
-<hr/>
-<div>
-	<p id="output_message"></p>
-	<video id="output_video" autoplay=true></video>
-</div>
-<hr/>
-<textarea readonly="true" id="output_console" cols=91 rows=5>
-</textarea>
+    <h1>
+        MediaRecorder to RTMP Demo
+    </h1>
+    <div id="formContainer">
+        <fieldset>
+            <legend>Size:</legend>
+            <input type="number" id="option_width" value="640">
+            <input type="number" id="option_height" value="480">
+        </fieldset>
+        <fieldset>
+            <legend>RTMP Destination:</legend>
+            <input type="text" id="option_url" />
+        </fieldset>
+        <div class="button-container">
+            <button id="button_start" class="btn">
+                <img src="play.svg" style="vertical-align: middle"><span>Start streaming</span>
+            </button>
+        </div>
+    </div>
+    <video id="output_video" autoplay muted></video>
+    <div>
+        <p id="output_message"></p>
+    </div>
+    <div id="logContainer"></div>
 
-	<script>
-function fail(str){alert(str+"\nPlease download the latest version of Firefox!");location.replace('http://mozilla.org/firefox');}
-var output_console=document.getElementById('output_console'),
-	output_message=document.getElementById('output_message'),
-	output_video=document.getElementById('output_video'),
-	option_url=document.getElementById('option_url'),
-	option_width=document.getElementById('option_width'),
-	option_height=document.getElementById('option_height'),
-	button_start=document.getElementById('button_start'),
-	height=option_height.value,
-	width=option_width.value,
-	url=option_url.value='rtmp://'+location.host.split(':')[0]+':1935/live';
+    <script>
+        url = option_url.value = 'rtmp://' + location.hostname + ':1935/live';
+        option_url.onchange = evt => url = option_url.value;
+        button_start.onclick = requestMedia;
 
-option_height.onchange=option_height.onkeyup=function(){height=1*this.value;}
-option_width.onchange=option_width.onkeyup=function(){width=1*this.value;}
-option_url.onchange=option_url.onkeyup=function(){url=this.value;}
-button_start.onclick=requestMedia;
+        function addConsoleMessage(str, type) {
+            const msgType = document.createElement('span');
+            msgType.classList.add('type');
+            msgType.textContent = type;
+            const msg = document.createElement('span');
+            msg.classList.add('log')
+            msg.textContent = str;
+            const logLine = document.createElement('div');
+            logLine.classList.add('log-line');
+            logLine.classList.add(type);
+            logLine.appendChild(msgType);
+            logLine.appendChild(msg);
+            logContainer.appendChild(logLine);
+            logLine.scrollIntoView();
+        }
 
-function video_show(stream){
-  if (window.URL) {
-    output_video.src = window.URL.createObjectURL(stream);
-  } else {
-    output_video.src = stream;
-  }
-  output_video.addEventListener( "loadedmetadata", function (e) {
-	output_message.innerHTML="Local video source size:"+output_video.videoWidth+"x"+output_video.videoHeight;
-}, false );
-}
-function show_output(str){
-	output_console.value+="\n"+str;
-	output_console.scrollTop = output_console.scrollHeight;
-}
+        if (!MediaRecorder) {
+            addConsoleMessage('No MediaRecorder available.', 'fatal');
+        }
 
+        let mediaRecorder;
+        const ws = new WebSocket('wss://localhost:8888');
+        ws.onopen = function (evt) {
+            addConsoleMessage('ws open', 'event');
+        };
+        ws.onmessage = function (evt) {
+            if (typeof evt.data === 'string') {
+                const msg = JSON.parse(evt.data);
+                switch (msg.type) {
+                    case 'message':
+                        addConsoleMessage('SERVER: ' + msg.body, msg.type);
+                        break;
+                    case 'fatal':
+                        addConsoleMessage('ERROR: unexpected:' + msg.body, msg.type);
+                        //alert('Error: ' + msg.body);
+                        mediaRecorder.stop();
+                        break;
+                    case 'ffmpeg':
+                        addConsoleMessage(msg.body, msg.type);
+                        break;
+                    case 'disconnect':
+                        addConsoleMessage('ERROR: server disconnected!');
+                        mediaRecorder.stop();
+                        break;
+                }
+            }
+        };
+        ws.onerror = function (evt) {
+            addConsoleMessage('WebSocket Error', 'error');
+        }
+        ws.onclose = function (evt) {
+            addConsoleMessage(`WebSocket Close: code=${evt.code}`, 'event');
+        }
 
-navigator.getUserMedia = (navigator.getUserMedia ||
-                          navigator.mozGetUserMedia ||
-                          navigator.msGetUserMedia ||
-                          navigator.webkitGetUserMedia);
-if(!navigator.getUserMedia){fail('No getUserMedia() available.');}
-if(!MediaRecorder){fail('No MediaRecorder available.');}
-var mediaRecorder;
-var socket = io();
-socket.on('message',function(m){
-	console.log('recv server message',m);
-	show_output('SERVER:'+m);
-});
-socket.on('fatal',function(m){
-	show_output('ERROR: unexpected:'+m);
-	alert('Error:'+m);
-	mediaRecorder.stop();
-	//should reload?
-});
-socket.on('ffmpeg_stderr',function(m){
-	show_output('FFMPEG:'+m);
-});
-socket.on('disconnect', function () {
-	show_output('ERROR: server disconnected!');
-	mediaRecorder.stop();
-});
+        function requestMedia() {
+            navigator.mediaDevices.getUserMedia({
+                audio: false,
+                video: {
+                    width: { exact: option_width.value },
+                    height: { exact: option_height.value },
+                    frameRate: { exact: 30 },
+                }
+            }).then(stream => {
+                output_video.loadedmetadata = evt => {
+                    output_message.textCntent = "Local video source size:" + output_video.videoWidth + "x" + output_video.videoHeight;
+                };
+                output_video.srcObject = stream;
 
-function onSuccess(stream) {
-	video_show(stream);//only show locally, not remotely
-	
-	socket.emit('config_rtmpDestination',url);
-	socket.emit('start','start');
-	//var options = {mimeType: 'video/webm;codecs=vp8'};
-	var options = {mimeType: 'video/webm;codecs=vp8', videoBitsPerSecond: 382000};
-	mediaRecorder = new MediaRecorder(stream,options);
-	mediaRecorder.start(2000);
+                ws.send(JSON.stringify({
+                    type: 'start',
+                    rtmpDestination: url,
+                    vcodec: 'libvpx'
+                }));
 
-	mediaRecorder.onstop = function(e) {
-		stream.stop();
-	}
+                mediaRecorder = new MediaRecorder(stream, {
+                    mimeType: 'video/webm;codecs=vp8',
+                    videoBitsPerSecond: 382000
+                });
+                mediaRecorder.start(2000);
 
-	mediaRecorder.ondataavailable = function(e) {
-	  socket.emit("binarystream",e.data);
-	  //chunks.push(e.data);
-	}
-}
+                mediaRecorder.onstop = function (e) {
+                    stream.getTracks().forEach(track => track.stop());
+                }
 
-function onError(err) {
-	console.log('The following error occured: ' + err);
-	show_output('Local getUserMedia ERROR:'+err);
-}
-function requestMedia(){
-	var constraints = { audio: true, 
-		video:{
-	        width: { min: width, ideal: width, max: width },
-	        height: { min: height, ideal: height, max: height },
-	        frameRate: { ideal: 10, max: 10 },
-	    }
-	};
-	navigator.getUserMedia(constraints, onSuccess, onError);
-}
-	</script>
+                mediaRecorder.ondataavailable = function (e) {
+                    ws.send(e.data);
+                    //chunks.push(e.data);
+                }
+            }, err => {
+                addConsoleMessage('Local getUserMedia ERROR:' + err, 'error');
+            });
+        }
+    </script>
 </body>
+
 </html>
